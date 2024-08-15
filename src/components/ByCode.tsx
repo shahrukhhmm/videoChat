@@ -1,0 +1,161 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { useCallback, useEffect, useState } from "react";
+import toast from "react-hot-toast";
+import { useNavigate } from "react-router-dom";
+import { useSocket } from "../context/SocketProvider";
+import { getCountries } from "../lib/helper";
+import {
+    Button,
+} from "./ui/button";
+import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import {
+    Select,
+    SelectContent,
+    SelectGroup,
+    SelectItem,
+    SelectLabel,
+    SelectTrigger,
+    SelectValue
+} from "./ui/select";
+
+const ByCode = ({ room, open, setOpen }: any) => {
+    const [countries, setCountries] = useState<{ flag: string; languages: string[] }[]>([]);
+    const [username, setUsername] = useState<string>("");
+    const [language, setLanguage] = useState<string>("");
+    const socket: any = useSocket();
+    const navigate = useNavigate();
+
+
+    const handleJoin = () => {
+        setOpen(false);
+        if (!room || room.trim() === '') {
+            toast.error('Invalid Room code or url');
+            return;
+        }
+
+        if (room.includes('http')) {
+            setOpen(false);
+            window.open(room, '_self');
+        } else if (room.length === 6) {
+            // Only setOpen if room is valid and not empty
+            setOpen(true);
+        } else {
+            setOpen(false);
+            toast.error('Invalid Room code or url');
+        }
+    };
+
+    useEffect(() => {
+        const fetchCountries = async () => {
+            const countryData = await getCountries();
+            setCountries(countryData);
+        };
+        fetchCountries();
+    }, []);
+
+    const handleSubmitForm = useCallback(
+        (e: React.FormEvent<HTMLFormElement>) => {
+            e.preventDefault();
+            if (!username || !language) {
+                toast.error('Please enter a username and language');
+                return;
+            }
+            // console.log("Submitting form with values:", { username, room, language });
+            socket?.emit("room:join", { username, room, language });
+            localStorage.setItem("currentUser", username)
+            localStorage.setItem("currentUserLanguage", language)
+        },
+        [username, room, language, socket]
+    );
+
+    const handleJoinRoom = useCallback(
+        (data: { username: any; room: any; }) => {
+            const { room } = data;
+            console.log("Joining room:", room);
+            navigate(`/room/${room}`);
+        },
+        [navigate]
+    );
+
+    useEffect(() => {
+        socket?.on("room:join", handleJoinRoom);
+        return () => {
+            socket?.off("room:join", handleJoinRoom);
+        };
+    }, [socket, handleJoinRoom]);
+
+    return (
+        <div>
+            <Dialog open={open} >
+                <DialogTrigger asChild >
+                    <Button variant="outline" className="border-secondary-upperground hover:border-secondary-upperground/50 hover:bg-secondary-upperground hover:text-gray-300 bg-transparent text-gray-300" onClick={handleJoin}>
+                        Join
+                    </Button>
+                </DialogTrigger>
+                <DialogContent className=" max-w-[425px]">
+                    <form onSubmit={handleSubmitForm}>
+
+                        <DialogHeader>
+                            <DialogTitle>Join Room</DialogTitle>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-4">
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="username" className="text-right">
+                                    Username
+                                </Label>
+                                <Input
+                                    id="username"
+                                    placeholder="John Doe"
+                                    value={username}
+                                    onChange={(e) => setUsername(e.target.value)}
+                                    className="col-span-3 border-secondary-upperground"
+                                />
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="language" className="text-right">
+                                    Language
+                                </Label>
+                                <Select onValueChange={setLanguage}>
+                                    <SelectTrigger className="col-span-3 border-secondary-upperground">
+                                        <SelectValue placeholder="Select your language" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectGroup>
+                                            <SelectLabel>Languages</SelectLabel>
+                                            {countries.map((country, index) => (
+                                                <SelectItem
+                                                    key={index}
+                                                    value={`${country.languages[0]}-${index}`} // Making the value unique by adding the index
+                                                >
+                                                    <img src={country.flag} alt="flag" className="inline-block mr-2 w-6 h-4" />
+                                                    {country.languages[0]}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectGroup>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button
+                                type="submit"
+                                className="bg-secondary-upperground hover:bg-secondary-upperground/80 m-2"
+                            >
+                                Start
+                            </Button>
+                            <DialogClose asChild>
+                                <Button type="button" onClick={() => setOpen(false)} className="bg-red-500 hover:bg-red-500/80 m-2">
+                                    Cancel
+                                </Button>
+                            </DialogClose>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+        </div >
+    );
+};
+
+export default ByCode;
